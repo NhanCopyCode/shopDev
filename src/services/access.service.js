@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const KeyTokenService = require("./keyToken.service");
 const { createTokenPair } = require("../auth/authUtils");
 const keytokenModel = require("../models/keytoken.model");
+const { getInfoData } = require("../utils");
 
 const RoleShop = {
 	SHOP: "SHOP",
@@ -37,40 +38,43 @@ class AccessService {
 				roles: [RoleShop.SHOP],
 			});
 			if (newShop) {
-				const { privateKey, publicKey } = crypto.generateKeyPairSync(
-					"rsa",
-					{
-						modulusLength: 4096,
-						publicKeyEncoding: {
-							type: "pkcs1",
-							format: "pem",
-						},
-						privateKeyEncoding: {
-							type: "pkcs1",
-							format: "pem",
-						},
-					}
-				); // Save collection keystore
-				const publicKeyString = await KeyTokenService.createKeyToken({
+				// const { privateKey, publicKey } = crypto.generateKeyPairSync(
+				// 	"rsa",
+				// 	{
+				// 		modulusLength: 4096,
+				// 		publicKeyEncoding: {
+				// 			type: "pkcs1",
+				// 			format: "pem",
+				// 		},
+				// 		privateKeyEncoding: {
+				// 			type: "pkcs1",
+				// 			format: "pem",
+				// 		},
+				// 	}
+				// ); // Save collection keystore
+				const privateKey = crypto.randomBytes(64).toString('hex');
+				const publicKey = crypto.randomBytes(64).toString("hex");
+
+				const keyStore = await KeyTokenService.createKeyToken({
 					userId: newShop._id,
 					publicKey,
+					privateKey
 				});
 
-				if (!publicKeyString) {
+				if (!keyStore) {
 					return {
 						code: "xxx",
 						message: "publicKeyString error",
 					};
 				}
-				const publicKeyObject = crypto.createPublicKey(publicKeyString);
-				console.log('publicKeyObject:', publicKeyObject)
+
 
 				const tokens = await createTokenPair(
 					{
 						userId: newShop._id,
 						email,
 					},
-					publicKeyObject,
+					publicKey,
 					privateKey
 				);
 				console.log("Create Token success::", tokens);
@@ -78,7 +82,10 @@ class AccessService {
 				return {
 					code: 201,
 					metadata: {
-						shop: newShop,
+						shop: getInfoData({
+							fields: ["_id", "name", "email"],
+							object: newShop,
+						}),
 						tokens,
 					},
 				};
@@ -89,6 +96,7 @@ class AccessService {
 				metadata: null,
 			};
 		} catch (error) {
+			console.log("Error::", error);
 			return {
 				code: "xxx",
 				message: error.message,
